@@ -10,22 +10,23 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Serve static files from the 'build' directory
-app.use(express.static(path.join(__dirname, './client/build')));
 
-// Define any other API routes or middleware here
+// // Serve static files from the 'build' directory
+// app.use(express.static(path.join(__dirname, './client/build')));
 
-// Catch-all route to serve 'index.html' for any unrecognized routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, './client/build', 'index.html'));
-});
+// // Define any other API routes or middleware here
+
+// // Catch-all route to serve 'index.html' for any unrecognized routes
+// app.get('/', (req, res) => {
+//   res.sendFile(path.join(__dirname, './client/build', 'index.html'));
+// });
 
 
 
 
 const db = new sqlite3.Database('./database.db');
-app.use(cors());
 
+app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 const bodyParser = require('body-parser');
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -231,6 +232,27 @@ app.get('/api/check-id-column/:tableName', (req, res) => {
   });
   
 
+// delete table 
+app.delete('/api/delete-table/:tableName', (req, res) => {
+  const tableName = req.params.tableName;
+
+  // Start a database transaction
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    // Drop the table
+    db.run(`DROP TABLE IF EXISTS ${tableName}`, [], (err) => {
+      if (err) {
+        console.error(err.message);
+        db.run('ROLLBACK');
+        return res.status(500).json({ message: 'Internal Server Error' });
+      }
+    });
+
+    db.run('COMMIT');
+    res.json({ message: 'Table deleted successfully' });
+  });
+});
 
 // Create a table if not exists
 db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -328,8 +350,8 @@ app.post('/api/login', (req, res) => {
             console.log(`Updated login status successfully.`);
             // ...
         const token = createToken({ user_id: exuser.user_id, role: exuser.role });
-        res.cookie('authToken', token, { httpOnly: true });
-        res.cookie('user_id', exuser.user_id); // Set user_id cookie
+        res.cookie('authToken', token);
+        res.cookie('user_id', exuser.user_id);
         return res.json({ user_id: exuser.user_id, token, role: exuser.role });
         // ...
           });
@@ -357,50 +379,79 @@ app.post('/api/logout', (req, res) => {
   });
 
  
-  
+
 app.get('/api/audio/:user_id', (req, res) => {
-      const { user_id } = req.params;
+    const { user_id } = req.params;
   
-      // Fetch batch_code and subject_code from the exuser table based on user_id
-      db.get(
-          'SELECT batch_code, subject_code, status FROM exuser WHERE user_id = ?',
-          [user_id],
-          (err, exuserRow) => {
-              if (err) {
-                  console.error(err);
-                  res.status(500).json({ error: 'Internal Server Error' });
-                  return;
+    // Fetch batch_code and subject_code from the exuser table based on user_id
+    db.get(
+      'SELECT batch_code, subject_code, status, last_played_position FROM exuser WHERE user_id = ?',
+      [user_id],
+      (err, exuserRow) => {
+        if (err) {
+          console.error(err);
+          res.status(500).json({ error: 'Internal Server Error' });
+          return;
+        }
+  
+        if (!exuserRow) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+  
+        const { batch_code, subject_code, status, last_played_position, duration } = exuserRow;
+  
+        // Fetch the audio link from the schedule table based on batch_code and subject_code
+        db.get(
+          'SELECT link_1 FROM schedule WHERE batch_code = ? AND subject_code = ?',
+          [batch_code, subject_code],
+          (err, scheduleRow) => {
+            if (err) {
+              console.error(err);
+              res.status(500).json({ error: 'Internal Server Error' });
+            } else if (scheduleRow) {
+              if (status === 'TRUE') {
+                if (last_played_position !== duration) {
+                  res.json({
+                    link: scheduleRow.link_1,
+                    last_played_position: last_played_position
+                  });
+                } else {
+                  res.json({
+                    link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
+                  });
+                }
+              } else {
+                res.json({
+                  link: scheduleRow.link_1,
+                  last_played_position: last_played_position
+                });
               }
-  
-              if (!exuserRow) {
-                  res.status(404).json({ error: 'User not found' });
-                  return;
-              }
-  
-              const { batch_code, subject_code, status } = exuserRow;
-  
-              // Fetch the audio link from the schedule table based on batch_code and subject_code
-              db.get(
-                  'SELECT link_1 FROM schedule WHERE batch_code = ? AND subject_code = ?',
-                  [batch_code, subject_code],
-                  (err, scheduleRow) => {
-                      if (err) {
-                          console.error(err);
-                          res.status(500).json({ error: 'Internal Server Error' });
-                      } else if (scheduleRow) {
-                          console.log(`Status is '${status.trim()}'`);
-                          if (status === 'TRUE') {
-                              res.json({ link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa' }); // Send an empty link if status is "TRUE"
-                          } else {
-                              res.json({ link: scheduleRow.link_1 });
-                          }
-                      } else {
-                          res.status(404).json({ error: 'Audio link not found' });
-                      }
-                  }
-              );
+            } else {
+              res.status(404).json({ error: 'Audio link not found' });
+            }
           }
-      );
+        );
+      }
+    );
+  });
+  
+app.put('/api/exuser/:user_id', (req, res) => {
+    const { user_id } = req.params;
+    const { last_played_position } = req.body;
+  
+    db.run(
+      'UPDATE exuser SET last_played_position = ? WHERE user_id = ?',
+      [last_played_position, user_id],
+      (err) => {
+        if (err) {
+          console.error(err);
+          res.status(500).json({ error: 'Internal Server Error' });
+        } else {
+          res.status(200).json({ message: 'Last played position updated successfully' });
+        }
+      }
+    );
   });
   
   // New API endpoint to update the status
@@ -426,13 +477,11 @@ app.put('/api/exuser/:user_id', (req, res) => {
  
 // Token creation function using jsonwebtoken
 function createToken(payload) {
-  return jwt.sign(payload, 'your-secret-key', { expiresIn: '1h' });
+  return jwt.sign(payload, 'your-secret-key', { expiresIn: '1d' });
 }
-
   
+const port = 5000;
 
-
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on port ${port}`);
 });
