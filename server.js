@@ -397,10 +397,10 @@ app.post('/api/login', (req, res) => {
 
       if (exuser) {
         console.log(`Found user in exuser table: ${JSON.stringify(exuser)}`);
-        // if (exuser.login === "TRUE") {
-        //   console.log(`User is already logged in.`);
-        //   return res.status(401).json({ error: 'User is already logged in elsewhere' });
-        // }
+        if (exuser.login === "TRUE") {
+          console.log(`User is already logged in.`);
+          return res.status(401).json({ error: 'User is already logged in elsewhere' });
+        }
 
         const updateLoginStatusQuery = 'UPDATE exuser SET login = "TRUE" WHERE user_id = ?';
         db.run(updateLoginStatusQuery, [user_id], (updateErr) => {
@@ -772,7 +772,9 @@ app.delete('/delete-all-user-percent', (req, res) => {
   const updateQuery = `
     UPDATE exuser
     SET last_played_position = 0,
-    last_played_position2 = 0
+    last_played_position2 = 0,
+    login = "FALSE"
+
   `;
 
 
@@ -861,6 +863,8 @@ function createToken(payload) {
   return jwt.sign(payload, 'your-secret-key', { expiresIn: '1d' });
 }
   
+
+
 
 const port = 5000;
 
