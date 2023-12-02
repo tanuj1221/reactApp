@@ -17,7 +17,7 @@ app.use(express.static(path.join(__dirname, './client/build')));
 // Define any other API routes or middleware here
 
 // Catch-all route to serve 'index.html' for any unrecognized routes
-app.get('/', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, './client/build', 'index.html'));
 });
 
@@ -365,7 +365,6 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
 // for user login only 
 // Import jsonwebtoken library
 
-
 app.post('/api/login', (req, res) => {
   const { user_id, password } = req.body;
   console.log(`Received credentials: user_id = ${user_id}, password = ${password}`);
@@ -410,6 +409,20 @@ app.post('/api/login', (req, res) => {
           }
 
           console.log(`Updated login status successfully.`);
+          const updateLogQuery = 'UPDATE logs SET logging = ? WHERE user_id = ?';
+          const now = new Date();
+          const offsetIST = 330; // IST offset UTC +5:30 
+          const istTime = new Date(now.getTime() + offsetIST*60*1000);
+          const loginTime = istTime.toISOString();
+         
+          db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+            if (updateLogErr) {
+              console.error('Error updating logs table:', updateLogErr);
+              return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+            }
+    
+            console.log(`Updated logs table successfully.`);})
+        
           // ...
       const token = createToken({ user_id: exuser.user_id, role: exuser.role });
       res.cookie('authToken', token);
@@ -860,9 +873,13 @@ app.get('/api/testaudio1/:user_id', (req, res) => {
 
 // Token creation function using jsonwebtoken
 function createToken(payload) {
-  return jwt.sign(payload, 'your-secret-key', { expiresIn: '1d' });
+  // Set expiresIn to 30 minutes
+  const expiresIn = 30 * 60; // 30 minutes in seconds
+
+  // Sign the token with the payload, secret key, and expiration time
+  return jwt.sign(payload, 'your-secret-key', { expiresIn });
 }
-  
+
 
 
 const port = 5000;
