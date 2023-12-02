@@ -10,6 +10,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.use(cors());
 
 // Serve static files from the 'build' directory
 app.use(express.static(path.join(__dirname, './client/build')));
@@ -26,7 +27,6 @@ app.get('/*', (req, res) => {
 
 const db = new sqlite3.Database('./database.db');
 
-app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 const bodyParser = require('body-parser');
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -383,7 +383,8 @@ app.post('/api/login', (req, res) => {
     if (user) {
       console.log(`Found user in users table: ${JSON.stringify(user)}`);
       const token = createToken({ user_id: user.user_id, role: user.role });
-      res.cookie('authToken', token, { httpOnly: true });
+      res.cookie('authToken', token, { httpOnly: false, sameSite: 'None', secure: true });
+      res.cookie('userRole', role, { httpOnly: false, sameSite: 'None', secure: true });
       return res.json({ user_id: user.user_id, token, role: user.role });
     }
 
@@ -425,7 +426,8 @@ app.post('/api/login', (req, res) => {
         
           // ...
       const token = createToken({ user_id: exuser.user_id, role: exuser.role });
-      res.cookie('authToken', token);
+      res.cookie('authToken', token, { httpOnly: false, sameSite: 'None', secure: true });
+      res.cookie('userRole', role, { httpOnly: false, sameSite: 'None', secure: true });
       res.cookie('user_id', exuser.user_id);
       return res.json({ user_id: exuser.user_id, token, role: exuser.role });
       // ...
