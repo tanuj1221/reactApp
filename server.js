@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, './client/build')));
 // Define any other API routes or middleware here
 
 // Catch-all route to serve 'index.html' for any unrecognized routes
-app.get('/*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, './client/build', 'index.html'));
 });
 
@@ -26,6 +26,7 @@ app.get('/*', (req, res) => {
 
 
 const db = new sqlite3.Database('./database.db');
+
 
 app.use(express.json({ limit: '100mb' }));
 const bodyParser = require('body-parser');
@@ -39,8 +40,6 @@ db.run(`CREATE TABLE IF NOT EXISTS items (
 
 // Configure multer for file uploads
 const upload = multer({ dest: 'uploads/' });
-
-// Endpoint to import data from CSV file
 app.post('/api/import-csv/:tableName', upload.single('csvFilePath'), (req, res) => {
   const tableName = req.params.tableName;
   const csvFilePath = req.file.path; // Use req.file.path to get the file path
@@ -66,30 +65,39 @@ app.post('/api/import-csv/:tableName', upload.single('csvFilePath'), (req, res) 
         return res.status(500).json({ error: 'No data found in the CSV file' });
       }
 
-      // Create the table if not exists
-      const createTableQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.map(column => `${column} TEXT`).join(', ')})`;
+      // Drop the existing table if exists
+      const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
 
-      db.run(createTableQuery, (createTableError) => {
-        if (createTableError) {
-          return res.status(500).json({ error: createTableError.message });
+      db.run(dropTableQuery, (dropTableError) => {
+        if (dropTableError) {
+          return res.status(500).json({ error: dropTableError.message });
         }
 
-        rows.forEach(row => {
-          const values = columns.map(column => row[column]);
-          const placeholders = columns.map(() => '?').join(', ');
-          const insertQuery = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+        // Create the table
+        const createTableQuery = `CREATE TABLE ${tableName} (${columns.map(column => `${column} TEXT`).join(', ')})`;
 
-          db.run(insertQuery, values, (insertError) => {
-            if (insertError) {
-              console.error('Error inserting data:', insertError.message);
-              return res.status(500).json({ error: insertError.message });
-            }
+        db.run(createTableQuery, (createTableError) => {
+          if (createTableError) {
+            return res.status(500).json({ error: createTableError.message });
+          }
+
+          rows.forEach(row => {
+            const values = columns.map(column => row[column]);
+            const placeholders = columns.map(() => '?').join(', ');
+            const insertQuery = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+
+            db.run(insertQuery, values, (insertError) => {
+              if (insertError) {
+                console.error('Error inserting data:', insertError.message);
+                return res.status(500).json({ error: insertError.message });
+              }
+            });
           });
-        });
 
-        // Remove the uploaded file after processing
-        fs.unlinkSync(csvFilePath);
-        res.json({ message: `CSV data imported into table '${tableName}' successfully` });
+          // Remove the uploaded file after processing
+          fs.unlinkSync(csvFilePath);
+          res.json({ message: `CSV data imported into table '${tableName}' successfully` });
+        });
       });
     });
 
@@ -339,7 +347,57 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
       res.json({ users: rows });
     });
   });
+
+  app.post('/api/save-changes-user/:tableName', (req, res) => {
+    const tableName = req.params.tableName;
+    const tableData = req.body.tableData;
+    const userId = req.body.userId; // Assuming you're passing the userId in the request body
   
+    // Start a database transaction
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+  
+      // Update data for the user
+      tableData.forEach((row) => {
+        // Generate a query to update this row
+        const updateQuery = `UPDATE ${tableName} SET ${Object.keys(row).map(key => key + ' = ?').join(', ')} WHERE user_id = ?`;
+  
+        // Get the values for the query parameters
+        const values = [...Object.values(row), userId];
+  
+        db.run(updateQuery, values, (err) => {
+          if (err) {
+            console.error(err.message);
+            db.run('ROLLBACK');
+            return res.status(500).json({ message: 'Internal Server Error' });
+          }
+        });
+      });
+  
+      db.run('COMMIT');
+      res.json({ message: 'Changes saved successfully' });
+    });
+  });
+  
+
+  // get user info for update 
+  app.get('/api/:tableName/usersupdate1/:userId', (req, res) => {
+    const tableName = req.params.tableName;
+    const userId = req.params.userId;
+  
+    db.get(`SELECT * FROM ${tableName} WHERE user_id = ?`, userId, (err, row) => {
+      if (err) {
+        console.error(err.message);
+        return res.status(500).json({ message: 'Internal Server Error' });
+      }
+  
+      if (row) {
+        res.json(row);
+      } else {
+        res.status(404).json({ message: `User not found with id ${userId}` });
+      }
+    });
+  });
   // Endpoint to add a new user
   app.post('/api/users', (req, res) => {
     const { role, password } = req.body;
@@ -383,8 +441,8 @@ app.post('/api/login', (req, res) => {
     if (user) {
       console.log(`Found user in users table: ${JSON.stringify(user)}`);
       const token = createToken({ user_id: user.user_id, role: user.role });
-      res.cookie('authToken', token, { httpOnly: false, sameSite: 'None', secure: true });
-      res.cookie('userRole', role, { httpOnly: false, sameSite: 'None', secure: true });
+      res.cookie('authToken', token, { httpOnly: False });
+      res.cookie('userRole', user.role, { httpOnly: False });
       return res.json({ user_id: user.user_id, token, role: user.role });
     }
 
@@ -426,8 +484,8 @@ app.post('/api/login', (req, res) => {
         
           // ...
       const token = createToken({ user_id: exuser.user_id, role: exuser.role });
-      res.cookie('authToken', token, { httpOnly: false, sameSite: 'None', secure: true });
-      res.cookie('userRole', role, { httpOnly: false, sameSite: 'None', secure: true });
+      res.cookie('authToken', token, { httpOnly: False });
+      res.cookie('userRole', exuser.role, { httpOnly: False });
       res.cookie('user_id', exuser.user_id);
       return res.json({ user_id: exuser.user_id, token, role: exuser.role });
       // ...
@@ -448,7 +506,21 @@ app.post('/api/logout', (req, res) => {
       if (updateErr) {
         console.error('Error updating login status:', updateErr);
         return res.status(500).json({ error: 'Internal Server Error during updating login status' });
+
       }
+      const updateLogQuery = 'UPDATE logs SET logout = ? WHERE user_id = ?';
+      const now = new Date();
+      const offsetIST = 330; // IST offset UTC +5:30 
+      const istTime = new Date(now.getTime() + offsetIST*60*1000);
+      const loginTime = istTime.toISOString();
+     
+      db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+        if (updateLogErr) {
+          console.error('Error updating logs table:', updateLogErr);
+          return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+        }
+
+        console.log(`Updated logs table successfully.`);})
   
       console.log(`Updated login status successfully.`);
       return res.json({ success: true });
@@ -513,6 +585,126 @@ app.get('/api/audio/:user_id', (req, res) => {
     );
   });
   
+// get countdownauidoo 
+
+
+app.get('/api/countaudio/:user_id', (req, res) => {
+  const { user_id } = req.params;
+
+  // Fetch batch_code and subject_code from the exuser table based on user_id
+  db.get(
+    'SELECT batch_code, subject_code, status, countdown_position FROM exuser WHERE user_id = ?',
+    [user_id],
+    (err, exuserRow) => {
+      if (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+        return;
+      }
+
+      if (!exuserRow) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const { batch_code, subject_code, status, countdown_position, duration } = exuserRow;
+
+      // Fetch the audio link from the schedule table based on batch_code and subject_code
+      db.get(
+        'SELECT countdown FROM schedule WHERE batch_code = ? AND subject_code = ?',
+        [batch_code, subject_code],
+        (err, scheduleRow) => {
+          if (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Internal Server Error' });
+          } else if (scheduleRow) {
+            if (status === 'TRUE') {
+              if (countdown_position !== duration) {
+                res.json({
+                  link: scheduleRow.countdown,
+                  countdown_position: countdown_position
+                });
+              } else {
+                res.json({
+                  link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
+                });
+              }
+            } else {
+              res.json({
+                link: scheduleRow.countdown,
+                countdown_position: countdown_position
+              });
+            }
+          } else {
+            res.status(404).json({ error: 'Audio link not found' });
+          }
+        }
+      );
+    }
+  );
+});
+
+
+  // get trial audio 
+  app.get('/api/trialaudio/:user_id', (req, res) => {
+    const { user_id } = req.params;
+  
+    // Fetch batch_code and subject_code from the exuser table based on user_id
+    db.get(
+      'SELECT batch_code, subject_code, status, last_played_position FROM exuser WHERE user_id = ?',
+      [user_id],
+      (err, exuserRow) => {
+        if (err) {
+          console.error(err);
+          res.status(500).json({ error: 'Internal Server Error' });
+          return;
+        }
+  
+        if (!exuserRow) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+  
+        const { batch_code, subject_code, status, last_played_position, duration } = exuserRow;
+  
+        // Fetch the audio link from the schedule table based on batch_code and subject_code
+        db.get(
+          'SELECT trialaudio FROM schedule WHERE batch_code = ? AND subject_code = ?',
+          [batch_code, subject_code],
+          (err, scheduleRow) => {
+            if (err) {
+              console.error(err);
+              res.status(500).json({ error: 'Internal Server Error' });
+            } else if (scheduleRow) {
+              if (status === 'TRUE') {
+                if (last_played_position !== duration) {
+                  res.json({
+                    link: scheduleRow.trialaudio,
+                    last_played_position: last_played_position
+                  });
+                } else {
+                  res.json({
+                    link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
+                  });
+                }
+              } else {
+                res.json({
+                  link: scheduleRow.trialaudio,
+                  last_played_position: last_played_position
+                });
+              }
+            } else {
+              res.status(404).json({ error: 'Audio link not found' });
+            }
+          }
+        );
+      }
+    );
+  });
+
+
+
+
 // second auido play code 
 app.get('/api/audio2/:user_id', (req, res) => {
   const { user_id } = req.params;
@@ -596,6 +788,38 @@ app.put('/api/exuser1/:user_id', (req, res) => {
   );
 });
 
+
+// last played coundown audio position 
+app.put('/api/countexuser1/:user_id', (req, res) => {
+  const { user_id } = req.params;
+  const { countdown_position } = req.body;
+
+  if (typeof countdown_position !== 'number') {
+    res.status(400).json({ error: 'Invalid data type for countdown_position' });
+    return;
+  }
+
+  db.run(
+    'UPDATE exuser SET countdown_position = ? WHERE user_id = ?',
+    [countdown_position, user_id],
+    function(err) {
+      if (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Could not update last played position' });
+        console.log('Could not update last played position')
+        return;
+      }
+
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.json({ message: 'Last played position updated successfully' });
+    }
+  );
+});
+
 // last played 2nd audio 
 app.put('/api/exuser4/:user_id', (req, res) => {
   const { user_id } = req.params;
@@ -649,6 +873,30 @@ app.get('/api/exuser2/:user_id', (req, res) => {
       res.json(row);
     }
   );})
+// fetch countdown position 
+
+  app.get('/api/countexuser2/:user_id', (req, res) => {
+    const { user_id } = req.params;
+  
+    db.get(
+      'SELECT countdown_position FROM exuser WHERE user_id = ?',
+      [user_id],
+      (err, row) => {
+        if (err) {
+          console.error(err);
+          res.status(500).json({ error: 'Could not fetch last played position' });
+          return;
+        }
+  
+        if (!row) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+  
+        res.json(row);
+      }
+    );})
+  
 
 // restart second audio one where its left 
 app.get('/api/exuser3/:user_id', (req, res) => {
@@ -693,6 +941,27 @@ app.put('/api/exuser/:user_id', (req, res) => {
       );
   });
   
+// update status of countdown audio 
+app.put('/api/countexuser/:user_id', (req, res) => {
+  const { user_id } = req.params;
+
+  // Execute SQL query to update status
+  db.run(
+      'UPDATE exuser SET status = "TRUE" WHERE user_id = ?',
+      [user_id],
+      (err) => {
+          if (err) {
+              console.error(err);
+              res.status(500).json({ error: 'Internal Server Error' });
+          } else {
+              res.json({ message: 'Status updated successfully' });
+              console.log("status updated")
+          }
+      }
+  );
+});
+
+
 
 // update information date time 
 app.post('/api/infolog', (req, res) => {
@@ -788,6 +1057,7 @@ app.delete('/delete-all-user-percent', (req, res) => {
     UPDATE exuser
     SET last_played_position = 0,
     last_played_position2 = 0,
+    countdown_position=0,
     login = "FALSE"
 
   `;
@@ -846,6 +1116,23 @@ app.get('/api/intro1/:user_id', (req, res) => {
       // Send 'no' as a JSON string
       res.json('no');
     }
+  });
+});
+
+// admin part 
+app.get('/api/userlogs', (req, res) => {
+  const sql = `
+    SELECT exuser.last_played_position, exuser.last_played_position2, exuser.countdown_position, logs.*
+    FROM logs 
+    INNER JOIN exuser 
+    ON exuser.user_id =logs.user_id
+  `;
+
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      throw err;
+    }
+    res.json(rows);
   });
 });
 
