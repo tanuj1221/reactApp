@@ -441,8 +441,8 @@ app.post('/api/login', (req, res) => {
     if (user) {
       console.log(`Found user in users table: ${JSON.stringify(user)}`);
       const token = createToken({ user_id: user.user_id, role: user.role });
-      res.cookie('authToken', token, { httpOnly: False });
-      res.cookie('userRole', user.role, { httpOnly: False });
+      res.cookie('authToken', token, { httpOnly: false });
+      res.cookie('userRole', user.role, { httpOnly: false });
       return res.json({ user_id: user.user_id, token, role: user.role });
     }
 
@@ -484,8 +484,8 @@ app.post('/api/login', (req, res) => {
         
           // ...
       const token = createToken({ user_id: exuser.user_id, role: exuser.role });
-      res.cookie('authToken', token, { httpOnly: False });
-      res.cookie('userRole', exuser.role, { httpOnly: False });
+      res.cookie('authToken', token, { httpOnly: false });
+      res.cookie('userRole', exuser.role, { httpOnly: false });
       res.cookie('user_id', exuser.user_id);
       return res.json({ user_id: exuser.user_id, token, role: exuser.role });
       // ...
@@ -501,7 +501,7 @@ app.post('/api/logout', (req, res) => {
     const { user_id } = req.body;
     console.log('Logging out user ID:', user_id);
   
-    const updateLoginStatusQuery = 'UPDATE exuser SET login = "FALSE" WHERE user_id = ?';
+    const updateLoginStatusQuery = 'UPDATE exuser SET login = "TRUE" WHERE user_id = ?';
     db.run(updateLoginStatusQuery, [user_id], (updateErr) => {
       if (updateErr) {
         console.error('Error updating login status:', updateErr);
@@ -522,7 +522,7 @@ app.post('/api/logout', (req, res) => {
 
         console.log(`Updated logs table successfully.`);})
   
-      console.log(`Updated login status successfully.`);
+      console.log(`Updated logout status successfully.`);
       return res.json({ success: true });
     });
   });
@@ -575,6 +575,19 @@ app.get('/api/audio/:user_id', (req, res) => {
                   link: scheduleRow.link_1,
                   last_played_position: last_played_position
                 });
+                const updateLogQuery = 'UPDATE logs SET passage1 = ? WHERE user_id = ?';
+                const now = new Date();
+                const offsetIST = 330; // IST offset UTC +5:30 
+                const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                const loginTime = istTime.toISOString();
+               
+                db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                  if (updateLogErr) {
+                    console.error('Error updating logs table:', updateLogErr);
+                    return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                  }
+          
+                  console.log(`Updated logs table successfully.`);})
               }
             } else {
               res.status(404).json({ error: 'Audio link not found' });
@@ -634,6 +647,19 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                 link: scheduleRow.countdown,
                 countdown_position: countdown_position
               });
+              const updateLogQuery = 'UPDATE logs SET countdown = ? WHERE user_id = ?';
+              const now = new Date();
+              const offsetIST = 330; // IST offset UTC +5:30 
+              const istTime = new Date(now.getTime() + offsetIST*60*1000);
+              const loginTime = istTime.toISOString();
+             
+              db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                if (updateLogErr) {
+                  console.error('Error updating logs table:', updateLogErr);
+                  return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                }
+        
+                console.log(`Updated logs table successfully.`);})
             }
           } else {
             res.status(404).json({ error: 'Audio link not found' });
@@ -645,8 +671,80 @@ app.get('/api/countaudio/:user_id', (req, res) => {
 });
 
 
+// get countdownauidoo 
+
+
+app.get('/api/trialaudio/:user_id', (req, res) => {
+  const { user_id } = req.params;
+
+  // Fetch batch_code and subject_code from the exuser table based on user_id
+  db.get(
+    'SELECT batch_code, subject_code, status, trial_position FROM exuser WHERE user_id = ?',
+    [user_id],
+    (err, exuserRow) => {
+      if (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+        return;
+      }
+
+      if (!exuserRow) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const { batch_code, subject_code, status, trial_position, duration } = exuserRow;
+
+      // Fetch the audio link from the schedule table based on batch_code and subject_code
+      db.get(
+        'SELECT trialaudio FROM schedule WHERE batch_code = ? AND subject_code = ?',
+        [batch_code, subject_code],
+        (err, scheduleRow) => {
+          if (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Internal Server Error' });
+          } else if (scheduleRow) {
+            if (status === 'TRUE') {
+              if (trial_position !== duration) {
+                res.json({
+                  link: scheduleRow.trialaudio,
+                  trial_position: trial_position
+                });
+              } else {
+                res.json({
+                  link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
+                });
+              }
+            } else {
+              res.json({
+                link: scheduleRow.trialaudio,
+                trial_position: trial_position
+              });
+              const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ?';
+              const now = new Date();
+              const offsetIST = 330; // IST offset UTC +5:30 
+              const istTime = new Date(now.getTime() + offsetIST*60*1000);
+              const loginTime = istTime.toISOString();
+             
+              db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                if (updateLogErr) {
+                  console.error('Error updating logs table:', updateLogErr);
+                  return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                }})
+            }
+          } else {
+            res.status(404).json({ error: 'Audio link not found' });
+          }
+        }
+      );
+    }
+  );
+});
+
+
+
   // get trial audio 
-  app.get('/api/trialaudio/:user_id', (req, res) => {
+  app.get('/api/testaudioftech/:user_id', (req, res) => {
     const { user_id } = req.params;
   
     // Fetch batch_code and subject_code from the exuser table based on user_id
@@ -669,7 +767,7 @@ app.get('/api/countaudio/:user_id', (req, res) => {
   
         // Fetch the audio link from the schedule table based on batch_code and subject_code
         db.get(
-          'SELECT trialaudio FROM schedule WHERE batch_code = ? AND subject_code = ?',
+          'SELECT testaudio FROM schedule WHERE batch_code = ? AND subject_code = ?',
           [batch_code, subject_code],
           (err, scheduleRow) => {
             if (err) {
@@ -679,7 +777,7 @@ app.get('/api/countaudio/:user_id', (req, res) => {
               if (status === 'TRUE') {
                 if (last_played_position !== duration) {
                   res.json({
-                    link: scheduleRow.trialaudio,
+                    link: scheduleRow.testaudio,
                     last_played_position: last_played_position
                   });
                 } else {
@@ -689,7 +787,7 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                 }
               } else {
                 res.json({
-                  link: scheduleRow.trialaudio,
+                  link: scheduleRow.testaudio,
                   last_played_position: last_played_position
                 });
               }
@@ -746,6 +844,19 @@ app.get('/api/audio2/:user_id', (req, res) => {
                 link_2: scheduleRow.link_2,
                 last_played_position: last_played_position
               });
+              const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ?';
+              const now = new Date();
+              const offsetIST = 330; // IST offset UTC +5:30 
+              const istTime = new Date(now.getTime() + offsetIST*60*1000);
+              const loginTime = istTime.toISOString();
+             
+              db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                if (updateLogErr) {
+                  console.error('Error updating logs table:', updateLogErr);
+                  return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                }})
+            
+              
               console.log("audio2 played")
             }
           } else {
@@ -819,6 +930,38 @@ app.put('/api/countexuser1/:user_id', (req, res) => {
     }
   );
 });
+
+// last played coundown audio position 
+app.put('/api/trialexuser1/:user_id', (req, res) => {
+  const { user_id } = req.params;
+  const { trial_position } = req.body;
+
+  if (typeof trial_position !== 'number') {
+    res.status(400).json({ error: 'Invalid data type for trial_position' });
+    return;
+  }
+
+  db.run(
+    'UPDATE exuser SET trial_position = ? WHERE user_id = ?',
+    [trial_position, user_id],
+    function(err) {
+      if (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Could not update last played position' });
+        console.log('Could not update last played position')
+        return;
+      }
+
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.json({ message: 'Last played position updated successfully' });
+    }
+  );
+});
+
 
 // last played 2nd audio 
 app.put('/api/exuser4/:user_id', (req, res) => {
@@ -897,6 +1040,29 @@ app.get('/api/exuser2/:user_id', (req, res) => {
       }
     );})
   
+  // fetch countdown position 
+
+  app.get('/api/trialexuser2/:user_id', (req, res) => {
+    const { user_id } = req.params;
+  
+    db.get(
+      'SELECT trial_position FROM exuser WHERE user_id = ?',
+      [user_id],
+      (err, row) => {
+        if (err) {
+          console.error(err);
+          res.status(500).json({ error: 'Could not fetch last played position' });
+          return;
+        }
+  
+        if (!row) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+  
+        res.json(row);
+      }
+    );})
 
 // restart second audio one where its left 
 app.get('/api/exuser3/:user_id', (req, res) => {
@@ -940,6 +1106,25 @@ app.put('/api/exuser/:user_id', (req, res) => {
           }
       );
   });
+
+  app.put('/api/trialexuser/:user_id', (req, res) => {
+    const { user_id } = req.params;
+
+    // Execute SQL query to update status
+    db.run(
+        'UPDATE exuser SET status = "TRUE" WHERE user_id = ?',
+        [user_id],
+        (err) => {
+            if (err) {
+                console.error(err);
+                res.status(500).json({ error: 'Internal Server Error' });
+            } else {
+                res.json({ message: 'Status updated successfully' });
+                console.log("status updated")
+            }
+        }
+    );
+});
   
 // update status of countdown audio 
 app.put('/api/countexuser/:user_id', (req, res) => {
@@ -1011,7 +1196,10 @@ app.delete('/delete-user-data/:user_id', (req, res) => {
         information = NULL,
         Instruction = NULL,
         testaudio = NULL,
-        logout = NULL
+        logout = NULL,
+        trial_passage=NULL,
+        passage1=NULL,
+        passage2=NULL
     WHERE user_id = ?
   `;
 
@@ -1032,10 +1220,13 @@ app.delete('/delete-all-user-data', (req, res) => {
   const updateQuery = `
     UPDATE logs
     SET Logging = NULL,
-        information = NULL,
-        Instruction = NULL,
-        testaudio = NULL,
-        logout = NULL
+    information = NULL,
+    Instruction = NULL,
+    testaudio = NULL,
+    logout = NULL,
+    trial_passage=NULL,
+    passage1=NULL,
+    passage2=NULL
   `;
 
 
