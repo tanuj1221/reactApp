@@ -6,6 +6,8 @@ const cors = require('cors');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const CryptoJS = require('crypto-js');
+const secretKey = 'your-secret-key';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,7 +25,10 @@ app.get('/', (req, res) => {
 });
 
 
-
+function encryptLink(plainText, secretKey) {
+  const cipherText = CryptoJS.AES.encrypt(plainText, secretKey).toString();
+  return cipherText;
+}
 
 const db = new sqlite3.Database('./database.db');
 
@@ -222,7 +227,7 @@ app.get('/api/info/:userId', (req, res) => {
 
       // Query schedule table to get batch_time, batch_date, and subject
       db.get(
-        'SELECT batch_time, batch_date, subject_speed FROM schedule WHERE subject_code = ? AND batch_code = ?',
+        'SELECT batch_time, batch_date, subject_speed, subject_language FROM schedule WHERE subject_code = ? AND batch_code = ?',
         [subject_code, batch_code],
         (err, scheduleRow) => {
           if (err) {
@@ -455,7 +460,7 @@ app.post('/api/login', (req, res) => {
 
       if (exuser) {
         console.log(`Found user in exuser table: ${JSON.stringify(exuser)}`);
-        if (exuser.login === "TRUE") {
+        if (exuser.login === "TR") {
           console.log(`User is already logged in.`);
           return res.status(401).json({ error: 'User is already logged in elsewhere' });
         }
@@ -472,7 +477,8 @@ app.post('/api/login', (req, res) => {
           const now = new Date();
           const offsetIST = 330; // IST offset UTC +5:30 
           const istTime = new Date(now.getTime() + offsetIST*60*1000);
-          const loginTime = istTime.toISOString();
+          const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+          const loginTime = istTime.toLocaleString('en-IN', options);
          
           db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
             if (updateLogErr) {
@@ -513,7 +519,8 @@ app.post('/api/logout', (req, res) => {
       const now = new Date();
       const offsetIST = 330; // IST offset UTC +5:30 
       const istTime = new Date(now.getTime() + offsetIST*60*1000);
-      const loginTime = istTime.toISOString();
+      const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+      const loginTime = istTime.toLocaleString('en-IN', options);
      
       db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
         if (updateLogErr) {
@@ -581,15 +588,17 @@ app.get('/api/audio/:user_id', (req, res) => {
             } else if (scheduleRow) {
               if (status === 'TRUE') {
                 if (last_played_position !== duration) {
+                  const encryptedLink = encryptLink(scheduleRow.link_1, secretKey);
                   res.json({
-                    link: scheduleRow.link_1,
+                    link: encryptedLink,
                     last_played_position: last_played_position
                   });
                   const updateLogQuery = 'UPDATE logs SET passage1 = ? WHERE user_id = ? AND passage1 IS NULL';
                   const now = new Date();
                   const offsetIST = 330; // IST offset UTC +5:30 
                   const istTime = new Date(now.getTime() + offsetIST*60*1000);
-                  const loginTime = istTime.toISOString();
+                  const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+                  const loginTime = istTime.toLocaleString('en-IN', options);
                  
                   db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
                     if (updateLogErr) {
@@ -605,7 +614,7 @@ app.get('/api/audio/:user_id', (req, res) => {
                 }
               } else {
                 res.json({
-                  link: scheduleRow.link_1,
+                  link:encryptLink(scheduleRow.link_1, secretKey),
                   last_played_position: last_played_position
                 });
         
@@ -662,7 +671,8 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                 const now = new Date();
                 const offsetIST = 330; // IST offset UTC +5:30 
                 const istTime = new Date(now.getTime() + offsetIST*60*1000);
-                const loginTime = istTime.toISOString();
+                const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+                const loginTime = istTime.toLocaleString('en-IN', options);
                
                 db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
                   if (updateLogErr) {
@@ -728,15 +738,17 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
           } else if (scheduleRow) {
             if (status === 'TRUE') {
               if (trial_position !== duration) {
+                const encryptedLink = encryptLink(scheduleRow.trialaudio, secretKey);
                 res.json({
-                  link: scheduleRow.trialaudio,
+                  link: encryptedLink,
                   trial_position: trial_position
                 });
                 const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
                 const now = new Date();
                 const offsetIST = 330; // IST offset UTC +5:30 
                 const istTime = new Date(now.getTime() + offsetIST*60*1000);
-                const loginTime = istTime.toISOString();
+                const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+                const loginTime = istTime.toLocaleString('en-IN', options);
                
                 db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
                   if (updateLogErr) {
@@ -750,15 +762,17 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
                 });
               }
             } else {
-              res.json({
-                link: scheduleRow.trialaudio,
-                trial_position: trial_position
-              });
+              const encryptedLink = encryptLink(scheduleRow.trialaudio, secretKey);
+                res.json({
+                  link: encryptedLink,
+                  trial_position: trial_position
+                });
               const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
               const istTime = new Date(now.getTime() + offsetIST*60*1000);
-              const loginTime = istTime.toISOString();
+              const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+              const loginTime = istTime.toLocaleString('en-IN', options);
              
               db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
                 if (updateLogErr) {
@@ -869,20 +883,23 @@ app.get('/api/audio2/:user_id', (req, res) => {
             res.status(500).json({ error: 'Internal Server Error' });
           } else if (scheduleRow) {
             if (status === 'TRUE' && last_played_position === duration) {
+              
               res.json({
                 link_2: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa',
                 last_played_position: last_played_position
               });
             } else {
+              const encryptedLink = encryptLink(scheduleRow.link_2, secretKey)
               res.json({
-                link_2: scheduleRow.link_2,
+                link_2: encryptedLink,
                 last_played_position: last_played_position
               });
               const updateLogQuery = 'UPDATE logs SET passage2 = ? WHERE user_id = ? AND passage2 IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
               const istTime = new Date(now.getTime() + offsetIST*60*1000);
-              const loginTime = istTime.toISOString();
+              const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
+              const loginTime = istTime.toLocaleString('en-IN', options);
              
               db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
                 if (updateLogErr) {
@@ -1283,6 +1300,7 @@ app.delete('/delete-all-user-percent', (req, res) => {
     SET last_played_position = 0,
     last_played_position2 = 0,
     countdown_position=0,
+    trial_position=0,
     login = "FALSE"
 
   `;
@@ -1347,7 +1365,7 @@ app.get('/api/intro1/:user_id', (req, res) => {
 // admin part 
 app.get('/api/userlogs', (req, res) => {
   const sql = `
-    SELECT exuser.last_played_position, exuser.last_played_position2, exuser.countdown_position, logs.*
+    SELECT exuser.trial_position, exuser.last_played_position, exuser.last_played_position2, exuser.countdown_position, logs.*
     FROM logs 
     INNER JOIN exuser 
     ON exuser.user_id =logs.user_id
