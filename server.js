@@ -497,6 +497,7 @@ app.post('/api/login', (req, res) => {
     });
   });
 });
+
 app.post('/api/logout', (req, res) => {
     const { user_id } = req.body;
     console.log('Logging out user ID:', user_id);
@@ -521,6 +522,25 @@ app.post('/api/logout', (req, res) => {
         }
 
         console.log(`Updated logs table successfully.`);})
+  
+      console.log(`Updated logout status successfully.`);
+      return res.json({ success: true });
+    });
+  });
+
+
+  app.post('/api/logout2', (req, res) => {
+    const { user_id } = req.body;
+    console.log('Logging out user ID:', user_id);
+  
+    const updateLoginStatusQuery = 'UPDATE exuser SET login = "FALSE" WHERE user_id = ?';
+    db.run(updateLoginStatusQuery, [user_id], (updateErr) => {
+      if (updateErr) {
+        console.error('Error updating login status:', updateErr);
+        return res.status(500).json({ error: 'Internal Server Error during updating login status' });
+
+      }
+   
   
       console.log(`Updated logout status successfully.`);
       return res.json({ success: true });
@@ -565,6 +585,19 @@ app.get('/api/audio/:user_id', (req, res) => {
                     link: scheduleRow.link_1,
                     last_played_position: last_played_position
                   });
+                  const updateLogQuery = 'UPDATE logs SET passage1 = ? WHERE user_id = ? AND passage1 IS NULL';
+                  const now = new Date();
+                  const offsetIST = 330; // IST offset UTC +5:30 
+                  const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                  const loginTime = istTime.toISOString();
+                 
+                  db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                    if (updateLogErr) {
+                      console.error('Error updating logs table:', updateLogErr);
+                      return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                    }
+            
+                    console.log(`Updated logs table successfully for passage1.`);})
                 } else {
                   res.json({
                     link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
@@ -575,19 +608,7 @@ app.get('/api/audio/:user_id', (req, res) => {
                   link: scheduleRow.link_1,
                   last_played_position: last_played_position
                 });
-                const updateLogQuery = 'UPDATE logs SET passage1 = ? WHERE user_id = ?';
-                const now = new Date();
-                const offsetIST = 330; // IST offset UTC +5:30 
-                const istTime = new Date(now.getTime() + offsetIST*60*1000);
-                const loginTime = istTime.toISOString();
-               
-                db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
-                  if (updateLogErr) {
-                    console.error('Error updating logs table:', updateLogErr);
-                    return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
-                  }
-          
-                  console.log(`Updated logs table successfully.`);})
+        
               }
             } else {
               res.status(404).json({ error: 'Audio link not found' });
@@ -637,6 +658,19 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                   link: scheduleRow.countdown,
                   countdown_position: countdown_position
                 });
+                const updateLogQuery = 'UPDATE logs SET countdown = ? WHERE user_id = ? AND countdown IS NULL';
+                const now = new Date();
+                const offsetIST = 330; // IST offset UTC +5:30 
+                const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                const loginTime = istTime.toISOString();
+               
+                db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                  if (updateLogErr) {
+                    console.error('Error updating logs table:', updateLogErr);
+                    return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                  }
+          
+                  console.log(`Updated logs table successfully.`);})
               } else {
                 res.json({
                   link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
@@ -647,19 +681,7 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                 link: scheduleRow.countdown,
                 countdown_position: countdown_position
               });
-              const updateLogQuery = 'UPDATE logs SET countdown = ? WHERE user_id = ?';
-              const now = new Date();
-              const offsetIST = 330; // IST offset UTC +5:30 
-              const istTime = new Date(now.getTime() + offsetIST*60*1000);
-              const loginTime = istTime.toISOString();
-             
-              db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
-                if (updateLogErr) {
-                  console.error('Error updating logs table:', updateLogErr);
-                  return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
-                }
-        
-                console.log(`Updated logs table successfully.`);})
+            
             }
           } else {
             res.status(404).json({ error: 'Audio link not found' });
@@ -710,6 +732,18 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
                   link: scheduleRow.trialaudio,
                   trial_position: trial_position
                 });
+                const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
+                const now = new Date();
+                const offsetIST = 330; // IST offset UTC +5:30 
+                const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                const loginTime = istTime.toISOString();
+               
+                db.run(updateLogQuery, [loginTime, user_id], (updateLogErr) => {
+                  if (updateLogErr) {
+                    console.error('Error updating logs table:', updateLogErr);
+                    return res.status(500).json({ error: 'Internal Server Error during updating logs table' });
+                  }})
+                
               } else {
                 res.json({
                   link: 'https://drive.google.com/uc?export=download&id=1_kkTyaPocjcy-01fxBRb_M8O5jvjtjDa'
@@ -720,7 +754,7 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
                 link: scheduleRow.trialaudio,
                 trial_position: trial_position
               });
-              const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ?';
+              const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
               const istTime = new Date(now.getTime() + offsetIST*60*1000);
@@ -844,7 +878,7 @@ app.get('/api/audio2/:user_id', (req, res) => {
                 link_2: scheduleRow.link_2,
                 last_played_position: last_played_position
               });
-              const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ?';
+              const updateLogQuery = 'UPDATE logs SET passage2 = ? WHERE user_id = ? AND passage2 IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
               const istTime = new Date(now.getTime() + offsetIST*60*1000);
@@ -1226,7 +1260,8 @@ app.delete('/delete-all-user-data', (req, res) => {
     logout = NULL,
     trial_passage=NULL,
     passage1=NULL,
-    passage2=NULL
+    passage2=NULL,
+    countdown= NULL
   `;
 
 
@@ -1241,7 +1276,6 @@ app.delete('/delete-all-user-data', (req, res) => {
     }
   });
 });
-
 
 app.delete('/delete-all-user-percent', (req, res) => {
   const updateQuery = `
