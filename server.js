@@ -476,7 +476,7 @@ app.post('/api/login', (req, res) => {
           const updateLogQuery = 'UPDATE logs SET logging = ? WHERE user_id = ?';
           const now = new Date();
           const offsetIST = 330; // IST offset UTC +5:30 
-          const istTime = new Date(now.getTime() + offsetIST*60*1000);
+          const istTime = new Date( );
           const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
           const loginTime = istTime.toLocaleString('en-IN', options);
          
@@ -518,7 +518,7 @@ app.post('/api/logout', (req, res) => {
       const updateLogQuery = 'UPDATE logs SET logout = ? WHERE user_id = ?';
       const now = new Date();
       const offsetIST = 330; // IST offset UTC +5:30 
-      const istTime = new Date(now.getTime() + offsetIST*60*1000);
+      const istTime = new Date( );
       const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
       const loginTime = istTime.toLocaleString('en-IN', options);
      
@@ -596,7 +596,7 @@ app.get('/api/audio/:user_id', (req, res) => {
                   const updateLogQuery = 'UPDATE logs SET passage1 = ? WHERE user_id = ? AND passage1 IS NULL';
                   const now = new Date();
                   const offsetIST = 330; // IST offset UTC +5:30 
-                  const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                  const istTime = new Date( );
                   const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
                   const loginTime = istTime.toLocaleString('en-IN', options);
                  
@@ -670,7 +670,7 @@ app.get('/api/countaudio/:user_id', (req, res) => {
                 const updateLogQuery = 'UPDATE logs SET countdown = ? WHERE user_id = ? AND countdown IS NULL';
                 const now = new Date();
                 const offsetIST = 330; // IST offset UTC +5:30 
-                const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                const istTime = new Date( );
                 const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
                 const loginTime = istTime.toLocaleString('en-IN', options);
                
@@ -746,7 +746,7 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
                 const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
                 const now = new Date();
                 const offsetIST = 330; // IST offset UTC +5:30 
-                const istTime = new Date(now.getTime() + offsetIST*60*1000);
+                const istTime = new Date( );
                 const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
                 const loginTime = istTime.toLocaleString('en-IN', options);
                
@@ -770,7 +770,7 @@ app.get('/api/trialaudio/:user_id', (req, res) => {
               const updateLogQuery = 'UPDATE logs SET trial_passage = ? WHERE user_id = ? AND trial_passage IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
-              const istTime = new Date(now.getTime() + offsetIST*60*1000);
+              const istTime = new Date( );
               const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
               const loginTime = istTime.toLocaleString('en-IN', options);
              
@@ -897,7 +897,7 @@ app.get('/api/audio2/:user_id', (req, res) => {
               const updateLogQuery = 'UPDATE logs SET passage2 = ? WHERE user_id = ? AND passage2 IS NULL';
               const now = new Date();
               const offsetIST = 330; // IST offset UTC +5:30 
-              const istTime = new Date(now.getTime() + offsetIST*60*1000);
+              const istTime = new Date( );
               const options = { timeZone: 'Asia/Kolkata',  hour12: true, year: 'numeric', month: 'numeric', day: 'numeric',hour: 'numeric', minute: 'numeric', second: 'numeric'};
               const loginTime = istTime.toLocaleString('en-IN', options);
              
